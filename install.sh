@@ -2303,7 +2303,11 @@ installSingBox() {
 
     if [[ ! -f "/etc/v2ray-agent/sing-box/sing-box" ]]; then
 
-        version=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=20" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
+        if [[ "${prereleaseStatus}" == "true" ]]; then
+            version=$(curl -s "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=20" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
+        else
+            version=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r .tag_name)
+        fi
 
         echoContent green " ---> 最新版本:${version}"
 
@@ -2362,8 +2366,12 @@ installXray() {
     echoContent skyBlue "\n进度  $1/${totalProgress} : 安装Xray"
 
     if [[ ! -f "/etc/v2ray-agent/xray/xray" ]]; then
+        if [[ "${prereleaseStatus}" == "true" ]]; then
+            version=$(curl -s "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=5" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
+        else
+            version=$(curl -s https://api.github.com/repos/XTLS/Xray-core/releases/latest | jq -r .tag_name)
+        fi
 
-        version=$(curl -s "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=5" | jq -r ".[]|select (.prerelease==${prereleaseStatus})|.tag_name" | head -1)
         echoContent green " ---> Xray-core版本:${version}"
         if [[ "${release}" == "alpine" ]]; then
             wget -c -q -P /etc/v2ray-agent/xray/ "https://github.com/XTLS/Xray-core/releases/download/${version}/${xrayCoreCPUVendor}.zip"
@@ -6684,7 +6692,7 @@ blacklist() {
         echoContent green " ---> 添加完毕"
 
     elif [[ "${blacklistStatus}" == "3" ]]; then
-        local allowDomainList="dl.google.com,apple.com,bing.com,microsoft.com,gstatic,xn--ngstr-lra8j.com,googleapis.com,googleapis.cn"
+        local allowDomainList="googleplay.com,play.google.com,play.googleapis.com,play-lh.googleusercontent.com,play-games.googleusercontent.com,play-fe.googleapis.com,dl.google.com,apple.com,apple-pki,apple-tvplus,apple-update,itunes,icloud,beats,bing.com,microsoft.com,gstatic,xn--ngstr-lra8j.com,googleapis.com,googleapis.cn"
 
         if [[ "${coreInstallType}" == "1" ]]; then
             unInstallRouting blackhole_out outboundTag
@@ -9960,7 +9968,7 @@ menu() {
     cd "$HOME" || exit
     echoContent red "\n=============================================================="
     echoContent green "作者：mack-a"
-    echoContent green "当前版本：v3.5.14"
+    echoContent green "当前版本：v3.5.16"
     echoContent green "Github：https://github.com/mack-a/v2ray-agent"
     echoContent green "描述：八合一共存脚本\c"
     showInstallStatus
