@@ -30,3 +30,10 @@ This changelog records changes made for the maintained fork of `mack-a/v2ray-age
 ## Upstream Sync Note
 
 When upstream changes are imported from `mack-a/v2ray-agent`, summarize the fork-visible impact here and keep the full sync process documented in `UPSTREAM-SYNC.md`.
+
+## 2026-09-25
+
+- Summary: Validate custom UUID and personalized-install inputs; pin VLESS+Reality+XHTTP+TLS to port 443
+- Type: compatibility
+- Impact: Invalid UUIDs and malformed option/port inputs no longer produce broken configs; option-12 XHTTP deployments always use 443 instead of a prompt-driven port
+- Notes: Fork-specific hardening committed before syncing upstream master

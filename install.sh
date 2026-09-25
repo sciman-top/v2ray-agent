@@ -1952,6 +1952,10 @@ checkPort() {
     fi
 }
 
+isValidUUID() {
+    [[ "$1" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]
+}
+
 # 安装TLS
 installTLS() {
     echoContent skyBlue "\n进度  $1/${totalProgress} : 申请TLS证书\n"
@@ -3827,7 +3831,12 @@ initXrayConfig() {
         read -r -p 'UUID:' customUUID
 
         if [[ -n ${customUUID} ]]; then
-            uuid=${customUUID}
+            if isValidUUID "${customUUID}"; then
+                uuid=${customUUID}
+            else
+                echoContent red " ---> UUID不合法，自动生成随机UUID"
+                uuid=$(/etc/v2ray-agent/xray/xray uuid)
+            fi
         else
             uuid=$(/etc/v2ray-agent/xray/xray uuid)
         fi
@@ -4309,7 +4318,12 @@ initSingBoxConfig() {
         read -r -p 'UUID:' customUUID
 
         if [[ -n ${customUUID} ]]; then
-            uuid=${customUUID}
+            if isValidUUID "${customUUID}"; then
+                uuid=${customUUID}
+            else
+                echoContent red " ---> UUID不合法，自动生成随机UUID"
+                uuid=$(/etc/v2ray-agent/sing-box/sing-box generate uuid)
+            fi
         else
             uuid=$(/etc/v2ray-agent/sing-box/sing-box generate uuid)
         fi
@@ -8152,29 +8166,51 @@ customXrayInstall() {
     echoContent yellow "12.VLESS+Reality+XHTTP+TLS[CDN可用]"
     read -r -p "请选择[多选]，[例如:1,2,3]:" selectCustomInstallType
     echoContent skyBlue "--------------------------------------------------------------"
+    local rawSelectCustomInstallType
+    rawSelectCustomInstallType=$(echo "${selectCustomInstallType}" | tr -d '[:space:]')
     if echo "${selectCustomInstallType}" | grep -q "，"; then
         echoContent red " ---> 请使用英文逗号分隔"
         exit 0
     fi
-    if [[ "${selectCustomInstallType}" != "12" ]] && ((${#selectCustomInstallType} >= 2)) && ! echo "${selectCustomInstallType}" | grep -q ","; then
+    if [[ "${rawSelectCustomInstallType}" != "12" ]] && ((${#rawSelectCustomInstallType} >= 2)) && ! echo "${rawSelectCustomInstallType}" | grep -q ","; then
         echoContent red " ---> 多选请使用英文逗号分隔"
         exit 0
     fi
 
-    if [[ "${selectCustomInstallType}" == "7" ]]; then
-        selectCustomInstallType=",${selectCustomInstallType},"
-    else
-        if ! echo "${selectCustomInstallType}" | grep -q "0,"; then
-            selectCustomInstallType=",0,${selectCustomInstallType},"
-        else
-            selectCustomInstallType=",${selectCustomInstallType},"
+    local parsedSelectCustomInstallType=","
+    local needsVLESSBase=true
+    local opt=
+    IFS=',' read -ra customInstallOpts <<<"${rawSelectCustomInstallType}"
+    for opt in "${customInstallOpts[@]}"; do
+        if [[ -z "${opt}" ]]; then
+            continue
         fi
+        if [[ "${opt}" != "0" && "${opt}" != "1" && "${opt}" != "3" && "${opt}" != "4" && "${opt}" != "7" && "${opt}" != "12" ]]; then
+            echoContent red " ---> 输入不合法"
+            customXrayInstall
+            return
+        fi
+        if [[ "${parsedSelectCustomInstallType}" != *",${opt},"* ]]; then
+            parsedSelectCustomInstallType="${parsedSelectCustomInstallType}${opt},"
+        fi
+        if [[ "${opt}" == "1" || "${opt}" == "3" || "${opt}" == "4" ]]; then
+            needsVLESSBase=false
+        fi
+    done
+
+    if [[ "${parsedSelectCustomInstallType}" == "," ]]; then
+        echoContent red " ---> 输入不合法"
+        customXrayInstall
+        return
     fi
 
-    if [[ "${selectCustomInstallType:0:1}" != "," ]]; then
-        selectCustomInstallType=",${selectCustomInstallType},"
+    # 仅在安装 TLS/CDN 协议时补充 0；Reality 组合(如 7,12)不自动补 0
+    if [[ "${needsVLESSBase}" == "false" ]] && [[ "${parsedSelectCustomInstallType}" != *",0,"* ]]; then
+        parsedSelectCustomInstallType=",0${parsedSelectCustomInstallType}"
     fi
-    if [[ "${selectCustomInstallType//,/}" =~ ^[0-7]+$ ]]; then
+    selectCustomInstallType="${parsedSelectCustomInstallType}"
+
+    if [[ "${selectCustomInstallType}" =~ ^,(0|1|3|4|7|12)(,(0|1|3|4|7|12))*,$ ]]; then
         readLastInstallationConfig
         unInstallSubscribe
         # checkBTPanel
@@ -9393,12 +9429,18 @@ initXrayRealityPort() {
         #            fi
         #        fi
         #        if [[ -z "${realityPort}" ]]; then
-        echoContent yellow "请输入端口[回车随机10000-30000]"
-
-        read -r -p "端口:" realityPort
-        if [[ -z "${realityPort}" ]]; then
-            realityPort=$((RANDOM % 20001 + 10000))
-        fi
+        while true; do
+            echoContent yellow "请输入端口[回车随机10000-30000]"
+            read -r -p "端口:" realityPort
+            if [[ -z "${realityPort}" ]]; then
+                realityPort=$((RANDOM % 20001 + 10000))
+                break
+            fi
+            if [[ "${realityPort}" =~ ^[0-9]+$ ]] && ((realityPort >= 1 && realityPort <= 65535)); then
+                break
+            fi
+            echoContent red " ---> 端口输入错误，请输入1-65535之间的数字"
+        done
         #        fi
         if [[ -n "${realityPort}" && "${xrayVLESSRealityPort}" == "${realityPort}" ]]; then
             handleXray stop
@@ -9416,35 +9458,16 @@ initXrayRealityPort() {
 }
 # 初始化XHTTP端口
 initXrayXHTTPort() {
-    if [[ -n "${xrayVLESSRealityXHTTPort}" && -z "${lastInstallationConfig}" ]]; then
-        read -r -p "读取到上次安装记录，是否使用上次安装时的端口 ？[y/n]:" historyXHTTPortStatus
-        if [[ "${historyXHTTPortStatus}" == "y" ]]; then
-            xHTTPort=${xrayVLESSRealityXHTTPort}
-        fi
-    elif [[ -n "${xrayVLESSRealityXHTTPort}" && -n "${lastInstallationConfig}" ]]; then
-        xHTTPort=${xrayVLESSRealityXHTTPort}
-    fi
-
-    if [[ -z "${xHTTPort}" ]]; then
-
-        echoContent yellow "请输入端口[回车随机10000-30000]"
-        read -r -p "端口:" xHTTPort
-        if [[ -z "${xHTTPort}" ]]; then
-            xHTTPort=$((RANDOM % 20001 + 10000))
-        fi
-        if [[ -n "${xHTTPort}" && "${xrayVLESSRealityXHTTPort}" == "${xHTTPort}" ]]; then
-            handleXray stop
-        else
-            checkPort "${xHTTPort}"
-        fi
-    fi
-    if [[ -z "${xHTTPort}" ]]; then
-        initXrayXHTTPort
+    # VLESS+Reality+XHTTP+TLS 端口固定为443，避免安装时误输入导致配置不可用
+    xHTTPort=443
+    if [[ -n "${xrayVLESSRealityXHTTPort}" && "${xrayVLESSRealityXHTTPort}" == "${xHTTPort}" ]]; then
+        handleXray stop
     else
-        allowPort "${xHTTPort}"
-        allowPort "${xHTTPort}" "udp"
-        echoContent yellow "\n ---> 端口: ${xHTTPort}"
+        checkPort "${xHTTPort}"
     fi
+    allowPort "${xHTTPort}"
+    allowPort "${xHTTPort}" "udp"
+    echoContent yellow "\n ---> VLESS+Reality+XHTTP+TLS固定端口: ${xHTTPort}"
 }
 
 # reality管理
