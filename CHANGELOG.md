@@ -37,3 +37,10 @@ When upstream changes are imported from `mack-a/v2ray-agent`, summarize the fork
 - Type: compatibility
 - Impact: Invalid UUIDs and malformed option/port inputs no longer produce broken configs; option-12 XHTTP deployments always use 443 instead of a prompt-driven port
 - Notes: Fork-specific hardening committed before syncing upstream master
+
+## 2026-09-25 (upstream sync)
+
+- Summary: Synced upstream master d64843b..5c5e2b7 (v3.5.25): sing-box 1.14 config migration, Xray download/start fixes, VLESS XHTTP TLS mode, docker reality, DNS API fixes
+- Type: compatibility
+- Impact: Xray/sing-box update flows preserved byte-for-byte at the menu/prompt level (wrapper pipeline `16/1|2/1/y` still compatible); `installCronTLS` crontab rewrite behavior unchanged; sing-box 1.14 config generation and updated `documents/sing-box.json` adopted
+- Notes: Upstream's `normalizeXrayInstallSelection` supersedes the fork's inline install-option parser; fork kept branding, entry-point URLs, UUID/port validation hardening. Upstream docs additions (pelican-bike) carried for merge parity.
